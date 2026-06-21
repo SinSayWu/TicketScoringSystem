@@ -398,8 +398,26 @@ function openBrowser(url) {
   if (process.env.NO_OPEN) return;
   try {
     if (process.platform === 'win32') {
-      // Use cmd's start; empty "" is the window title so a quoted URL works.
-      spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref();
+      // Prefer a known Chromium browser by its real path. This sidesteps the
+      // Windows "default browser" registry, which can be wrong/stuck (e.g.
+      // Settings shows Chrome but the handler is still Opera).
+      const pf = process.env.ProgramFiles || 'C:\\Program Files';
+      const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+      const local = process.env.LOCALAPPDATA || '';
+      const candidates = [
+        pf + '\\Google\\Chrome\\Application\\chrome.exe',
+        pf86 + '\\Google\\Chrome\\Application\\chrome.exe',
+        local + '\\Google\\Chrome\\Application\\chrome.exe',
+        pf + '\\Microsoft\\Edge\\Application\\msedge.exe',
+        pf86 + '\\Microsoft\\Edge\\Application\\msedge.exe',
+      ];
+      const browser = candidates.find((p) => p && fs.existsSync(p));
+      if (browser) {
+        spawn(browser, [url], { detached: true, stdio: 'ignore' }).unref();
+      } else {
+        // Fall back to whatever the system default is.
+        spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref();
+      }
     } else if (process.platform === 'darwin') {
       spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
     } else {
