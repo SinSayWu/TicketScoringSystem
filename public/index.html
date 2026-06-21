@@ -8,12 +8,19 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🎟️ <span>Ticket Scoring System</span></div>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h15A1.5 1.5 0 0 1 21 8.5v1.25a1.75 1.75 0 0 0 0 3.5v1.25A1.5 1.5 0 0 1 19.5 17h-15A1.5 1.5 0 0 1 3 15.5v-1.25a1.75 1.75 0 0 0 0-3.5z"/>
+        <path d="M14.5 7v10" stroke-dasharray="1.5 2.5"/>
+      </svg>
+      <span>Ticket Scoring System</span>
+    </div>
     <nav class="tabs">
       <button class="tab" data-tab="leaderboard">Leaderboard</button>
       <button class="tab" data-tab="upload">Upload CSV</button>
       <button class="tab" data-tab="games">Games</button>
-      <button class="tab" data-tab="categories">Categories</button>
+      <button class="tab" data-tab="categories">Sports</button>
       <button class="tab" data-tab="history">History</button>
     </nav>
   </header>
@@ -44,20 +51,20 @@
       <ol class="steps">
         <li>
           <label class="field">
-            <span>1. Which game is this CSV for?</span>
+            <span>Which game is this CSV for?</span>
             <select id="uploadGame"></select>
           </label>
           <p class="muted" id="noGamesHint" hidden>You have no games yet — create one on the <a href="#" data-goto="games">Games</a> tab first.</p>
         </li>
         <li>
-          <span class="field-label">2. Count which tickets?</span>
+          <span class="field-label">Count which tickets?</span>
           <div class="radio-row">
             <label><input type="radio" name="countMode" value="all" checked /> All active tickets</label>
             <label><input type="radio" name="countMode" value="checked" /> Only checked-in (Checked = Yes)</label>
           </div>
         </li>
         <li>
-          <span class="field-label">3. Choose your CSV file</span>
+          <span class="field-label">Choose your CSV file</span>
           <div id="drop" class="drop">
             <input type="file" id="fileInput" accept=".csv,text/csv" hidden />
             <p>Drag a CSV here, or <button class="btn link" id="browseBtn">browse…</button></p>
@@ -89,20 +96,20 @@
         <h1>Games</h1>
         <button id="addGameBtn" class="btn primary">+ Add game</button>
       </div>
-      <p class="muted">Each game earns its category's default points per ticket, unless you override it.</p>
+      <p class="muted">Each game earns its sport's default points per ticket, unless you override it.</p>
       <div id="gamesByCategory"></div>
       <p class="empty" id="gamesEmpty" hidden>No games yet. Click “Add game”.</p>
     </section>
 
-    <!-- CATEGORIES -->
+    <!-- SPORTS (categories) -->
     <section class="panel" data-panel="categories" hidden>
       <div class="panel-head">
-        <h1>Categories</h1>
-        <button id="addCatBtn" class="btn primary">+ Add category</button>
+        <h1>Sports</h1>
+        <button id="addCatBtn" class="btn primary">+ Add sport</button>
       </div>
-      <p class="muted">A category's default points apply to every game in it that hasn't been overridden.</p>
+      <p class="muted">A sport's default points apply to every game in it that hasn't been overridden.</p>
       <table class="data">
-        <thead><tr><th>Category</th><th class="num">Default points / ticket</th><th class="num">Games</th><th></th></tr></thead>
+        <thead><tr><th>Sport</th><th class="num">Default points / ticket</th><th class="num">Games</th><th></th></tr></thead>
         <tbody id="catRows"></tbody>
       </table>
     </section>

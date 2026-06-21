@@ -7,24 +7,38 @@ and the app awards points to every email in the file.
 Everything runs on your own computer — no internet, no accounts. Your data is
 saved to a plain `data.json` file you can back up or copy anywhere.
 
+It runs as a native Windows desktop app (built on [Electron](https://www.electronjs.org/)):
+its own window, no browser tab and no console window.
+
 ## Quick start
 
 1. Make sure [Node.js](https://nodejs.org/) is installed (any recent version).
-2. Double-click **`start.bat`**.
-3. Your browser opens to the app at `http://localhost:4321`.
-4. Keep the little black window open while you use the app. Close it to stop.
+2. The first time only, install the app's dependencies:
+   ```
+   npm install
+   ```
+3. Launch the app:
+   ```
+   npm start
+   ```
+4. The Ticket Scoring System opens in its own window. Close the window to stop.
+
+> Prefer the old browser-based mode? `npm run server` still runs the bare local
+> server and opens it in your browser at `http://127.0.0.1:4321`.
 
 ## How it works
 
-### Categories
-Sports categories (Baseball, Football, Basketball, Softball, Tennis come
-preset). Each category has a **default points-per-ticket** value. Add, rename,
-re-point, or delete categories on the **Categories** tab.
+### Sports
+Baseball, Football, Basketball, Softball, and Tennis come preset. Each sport has
+a **default points-per-ticket** value. Add, rename, re-point, or delete sports on
+the **Sports** tab.
 
 ### Games
-Each game belongs to a category. By default a game earns its category's points
+Each game belongs to a sport and has a **date** and two **teams** (home and
+away). The game's name fills in automatically from the teams (e.g. *Newton vs
+Lincoln*), or you can type your own. By default a game earns its sport's points
 per ticket, but you can **override the points for any game individually**
-(uncheck "Use category default" when adding/editing a game).
+(uncheck "Use sport default points" when adding/editing a game).
 
 > Because the CSV doesn't include a game date, **one CSV = one game**. Create
 > the game first, then upload that game's CSV and select it.
@@ -62,11 +76,13 @@ A sample file lives in [`samples/sample-football.csv`](samples/sample-football.c
 
 ## Your data
 
-- All data is stored in **`data.json`** next to `start.bat`. Back it up by
+- All data is stored in **`data.json`** in the project folder. Back it up by
   copying that file. It is intentionally not tracked by git.
 - To start completely fresh, stop the app and delete `data.json`.
 
 ## Tech
 
-Pure Node.js standard library (no dependencies to install) serving a small
-single-page web UI. See `server.js` and `public/`.
+A native desktop window (Electron, in `main.js`) hosting a tiny Node.js
+standard-library server (`server.js`) that serves the single-page web UI in
+`public/`. The server has no dependencies of its own; Electron is the only
+install. Not yet packaged into a standalone `.exe` — run it with `npm start`.

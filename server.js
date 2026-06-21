@@ -95,7 +95,10 @@ function gameView(game) {
     id: game.id,
     name: game.name,
     categoryId: game.categoryId,
-    categoryName: cat ? cat.name : '(no category)',
+    categoryName: cat ? cat.name : '(no sport)',
+    date: game.date || '',          // 'YYYY-MM-DD' or ''
+    homeTeam: game.homeTeam || '',
+    awayTeam: game.awayTeam || '',
     points: game.points, // null => inherits
     effectivePoints: effectivePoints(game),
     usesDefault: game.points === null || game.points === undefined,
@@ -245,11 +248,11 @@ async function handleApi(req, res, parts) {
       const body = await readBody(req);
       const name = String(body.name || '').trim();
       const pts = Number(body.defaultPoints);
-      if (!name) return sendJson(res, 400, { error: 'Category name is required.' });
+      if (!name) return sendJson(res, 400, { error: 'Sport name is required.' });
       if (!Number.isFinite(pts)) return sendJson(res, 400, { error: 'Default points must be a number.' });
       if (body.id) {
         const cat = categoryById(body.id);
-        if (!cat) return sendJson(res, 404, { error: 'Category not found.' });
+        if (!cat) return sendJson(res, 404, { error: 'Sport not found.' });
         cat.name = name;
         cat.defaultPoints = pts;
       } else {
@@ -260,7 +263,7 @@ async function handleApi(req, res, parts) {
     }
     if (method === 'DELETE' && id) {
       const used = state.games.some((g) => g.categoryId === id);
-      if (used) return sendJson(res, 400, { error: 'Cannot delete a category that still has games. Reassign or delete those games first.' });
+      if (used) return sendJson(res, 400, { error: 'Cannot delete a sport that still has games. Reassign or delete those games first.' });
       state.categories = state.categories.filter((c) => c.id !== id);
       saveState();
       return sendJson(res, 200, publicState());
@@ -271,11 +274,24 @@ async function handleApi(req, res, parts) {
   if (resource === 'games') {
     if (method === 'POST') {
       const body = await readBody(req);
-      const name = String(body.name || '').trim();
       const categoryId = String(body.categoryId || '');
-      if (!name) return sendJson(res, 400, { error: 'Game name is required.' });
-      if (!categoryById(categoryId)) return sendJson(res, 400, { error: 'Pick a valid category.' });
-      // points: null => inherit category default; otherwise a number.
+      if (!categoryById(categoryId)) return sendJson(res, 400, { error: 'Pick a valid sport.' });
+
+      const homeTeam = String(body.homeTeam || '').trim();
+      const awayTeam = String(body.awayTeam || '').trim();
+
+      // Date is optional; accept only a plain YYYY-MM-DD (what <input type=date> gives).
+      let date = String(body.date || '').trim();
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return sendJson(res, 400, { error: 'Date must look like YYYY-MM-DD.' });
+      }
+
+      // Name: use what was typed, else build it from the two teams.
+      let name = String(body.name || '').trim();
+      if (!name && homeTeam && awayTeam) name = homeTeam + ' vs ' + awayTeam;
+      if (!name) return sendJson(res, 400, { error: 'Give the game a name, or fill in both teams.' });
+
+      // points: null => inherit sport default; otherwise a number.
       let points = null;
       if (body.points !== null && body.points !== undefined && body.points !== '') {
         points = Number(body.points);
@@ -287,8 +303,11 @@ async function handleApi(req, res, parts) {
         game.name = name;
         game.categoryId = categoryId;
         game.points = points;
+        game.date = date;
+        game.homeTeam = homeTeam;
+        game.awayTeam = awayTeam;
       } else {
-        state.games.push({ id: newId(), name, categoryId, points });
+        state.games.push({ id: newId(), name, categoryId, points, date, homeTeam, awayTeam });
       }
       saveState();
       return sendJson(res, 200, publicState());
@@ -432,26 +451,44 @@ function openBrowser(url) {
 // "localhost" to IPv6 (::1) first, but we bind to IPv4 (127.0.0.1).
 const URL = 'http://127.0.0.1:' + PORT;
 
-loadState();
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.log('');
-    console.log('  Port ' + PORT + ' is already in use.');
-    console.log('  The app may already be running in another window —');
-    console.log('  try opening ' + URL + ' in your browser.');
-    console.log('');
-  } else {
-    console.log('  Could not start the server: ' + err.message);
-  }
-});
-server.listen(PORT, '127.0.0.1', () => {
-  console.log('');
-  console.log('  Ticket Scoring System is running.');
-  console.log('  Opening your browser to:  ' + URL);
-  console.log('  (If it does not open, paste that address into your browser.)');
-  console.log('');
-  console.log('  Data is saved to: ' + DATA_FILE);
-  console.log('  Keep this window open while you use the app. Close it to stop.');
-  console.log('');
-  openBrowser(URL);
-});
+// Start the server. Returns a promise that resolves with the base URL once it
+// is listening. Embedders (e.g. the Electron shell in main.js) call this and
+// then point a window at the URL; running `node server.js` directly also opens
+// the system browser.
+function start({ openExternalBrowser = false } = {}) {
+  loadState();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log('');
+        console.log('  Port ' + PORT + ' is already in use.');
+        console.log('  The app may already be running in another window —');
+        console.log('  reusing ' + URL + '.');
+        console.log('');
+        // The app is reachable at the same URL, so treat this as success.
+        if (!settled) { settled = true; resolve(URL); }
+      } else {
+        console.log('  Could not start the server: ' + err.message);
+        if (!settled) { settled = true; reject(err); }
+      }
+    });
+    server.listen(PORT, '127.0.0.1', () => {
+      console.log('');
+      console.log('  Ticket Scoring System is running at ' + URL);
+      console.log('  Data is saved to: ' + DATA_FILE);
+      console.log('');
+      if (openExternalBrowser) openBrowser(URL);
+      if (!settled) { settled = true; resolve(URL); }
+    });
+  });
+}
+
+module.exports = { start, PORT, get URL() { return URL; } };
+
+// Standalone mode: `node server.js` runs the server and opens the browser.
+if (require.main === module) {
+  start({ openExternalBrowser: true }).catch(() => {
+    /* error already logged above */
+  });
+}

@@ -7,6 +7,15 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// 'YYYY-MM-DD' -> 'Oct 4, 2025' (parsed as a local date so it doesn't shift a day).
+function fmtDate(d) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || '');
+  if (!m) return '';
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric', year: 'numeric',
+  });
+}
+
 let STATE = { categories: [], games: [], members: [], imports: [] };
 
 async function api(path, opts) {
@@ -62,7 +71,7 @@ function renderLeaderboard() {
   const tbody = $('#memberRows');
   tbody.innerHTML = members
     .map((m, i) => `<tr>
-      <td class="rank">${i + 1}</td>
+      <td class="rank${i < 3 ? ' rank-' + (i + 1) : ''}">${i + 1}</td>
       <td>${esc(m.name || '—')}</td>
       <td>${esc(m.email)}</td>
       <td class="num points-cell">${m.points}</td>
@@ -142,7 +151,11 @@ let pendingFileName = '';
 function renderUploadGames() {
   const sel = $('#uploadGame');
   sel.innerHTML = STATE.games
-    .map((g) => `<option value="${g.id}">${esc(g.name)} — ${g.categoryName} (${g.effectivePoints} pts/ticket)</option>`)
+    .map((g) => {
+      const when = fmtDate(g.date);
+      const label = `${g.name}${when ? ' · ' + when : ''} — ${g.categoryName} (${g.effectivePoints} pts/ticket)`;
+      return `<option value="${g.id}">${esc(label)}</option>`;
+    })
     .join('');
   const none = STATE.games.length === 0;
   $('#noGamesHint').hidden = !none;
@@ -243,23 +256,29 @@ function renderGames() {
     .filter((c) => byCat[c.id])
     .map((c) => {
       const games = byCat[c.id]
-        .map((g) => `<div class="game-row">
-          <div>
-            <div>${esc(g.name)}</div>
-            <div class="meta">${g.usesDefault ? 'uses category default' : 'custom points'}</div>
+        .slice()
+        // Newest games first; those without a date sink to the bottom.
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+        .map((g) => {
+          const bits = [fmtDate(g.date), g.usesDefault ? 'sport default' : 'custom points'].filter(Boolean);
+          return `<div class="game-row">
+          <div class="game-main">
+            <div class="game-name">${esc(g.name)}</div>
+            <div class="meta">${esc(bits.join(' · '))}</div>
           </div>
           <div class="row-actions">
-            <span class="pts">${g.effectivePoints} pts</span>
+            <span class="pts">${g.effectivePoints}<span class="pts-unit">pts</span></span>
             <button class="btn small" data-edit-game="${g.id}">Edit</button>
             <button class="btn small danger" data-del-game="${g.id}">Delete</button>
           </div>
-        </div>`).join('');
+        </div>`;
+        }).join('');
       return `<div class="cat-group"><h3>${esc(c.name)} <span class="badge">${c.defaultPoints} default pts/ticket</span></h3>${games}</div>`;
     }).join('');
 }
 
 $('#addGameBtn').addEventListener('click', () => {
-  if (!STATE.categories.length) return toast('Add a category first.', 'bad');
+  if (!STATE.categories.length) return toast('Add a sport first.', 'bad');
   openGameModal(null);
 });
 document.addEventListener('click', (e) => {
@@ -274,11 +293,20 @@ function openGameModal(game) {
     .map((c) => `<option value="${c.id}" ${game && game.categoryId === c.id ? 'selected' : ''}>${esc(c.name)} (${c.defaultPoints} pts)</option>`)
     .join('');
   const usesDefault = !game || game.usesDefault;
+  const v = (s) => (s ? esc(s) : '');
   modal(game ? 'Edit game' : 'Add game', `
+    <label class="field"><span>Sport</span><select id="m_cat">${catOpts}</select></label>
+    <label class="field"><span>Date</span>
+      <input type="date" id="m_date" value="${v(game && game.date)}" /></label>
+    <div class="field-row">
+      <label class="field"><span>Home team</span>
+        <input type="text" id="m_home" placeholder="e.g. Newton" value="${v(game && game.homeTeam)}" /></label>
+      <label class="field"><span>Away team</span>
+        <input type="text" id="m_away" placeholder="e.g. Lincoln" value="${v(game && game.awayTeam)}" /></label>
+    </div>
     <label class="field"><span>Game name</span>
-      <input type="text" id="m_name" placeholder="e.g. Football vs. Lincoln (Oct 4)" value="${game ? esc(game.name) : ''}" /></label>
-    <label class="field"><span>Category</span><select id="m_cat">${catOpts}</select></label>
-    <label class="field"><input type="checkbox" id="m_useDefault" ${usesDefault ? 'checked' : ''} /> Use category default points</label>
+      <input type="text" id="m_name" placeholder="Filled in from the teams — or type your own" value="${v(game && game.name)}" /></label>
+    <label class="check"><input type="checkbox" id="m_useDefault" ${usesDefault ? 'checked' : ''} /> Use sport default points</label>
     <label class="field"><span>Points per ticket</span>
       <input type="number" id="m_points" value="${game && !game.usesDefault ? game.points : ''}" ${usesDefault ? 'disabled' : ''} /></label>
   `, async () => {
@@ -287,13 +315,33 @@ function openGameModal(game) {
       id: game ? game.id : undefined,
       name: $('#m_name').value,
       categoryId: $('#m_cat').value,
+      date: $('#m_date').value,
+      homeTeam: $('#m_home').value,
+      awayTeam: $('#m_away').value,
       points: useDefault ? null : $('#m_points').value,
     };
     STATE = await api('games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     renderAll();
     toast('Game saved.', 'good');
   });
-  // wire default checkbox -> toggle points input, prefill with category default
+
+  // Auto-fill the name from the two teams ("Home vs Away"), but never clobber a
+  // name the user typed themselves.
+  const nameInput = $('#m_name'), home = $('#m_home'), away = $('#m_away');
+  let lastAuto = '';
+  if (game && game.homeTeam && game.awayTeam && game.name === `${game.homeTeam} vs ${game.awayTeam}`) {
+    lastAuto = game.name; // existing name was auto-generated, so keep it in sync
+  }
+  const syncName = () => {
+    const h = home.value.trim(), a = away.value.trim();
+    const suggestion = h && a ? `${h} vs ${a}` : '';
+    if (nameInput.value === '' || nameInput.value === lastAuto) nameInput.value = suggestion;
+    lastAuto = suggestion;
+  };
+  home.addEventListener('input', syncName);
+  away.addEventListener('input', syncName);
+
+  // Default-points checkbox -> toggle the points input, prefilling the sport default.
   const sync = () => {
     const use = $('#m_useDefault').checked;
     const ptsInput = $('#m_points');
@@ -345,8 +393,8 @@ document.addEventListener('click', (e) => {
 });
 
 function openCatModal(cat) {
-  modal(cat ? 'Edit category' : 'Add category', `
-    <label class="field"><span>Category name</span>
+  modal(cat ? 'Edit sport' : 'Add sport', `
+    <label class="field"><span>Sport name</span>
       <input type="text" id="c_name" placeholder="e.g. Wrestling" value="${cat ? esc(cat.name) : ''}" /></label>
     <label class="field"><span>Default points per ticket</span>
       <input type="number" id="c_points" value="${cat ? cat.defaultPoints : 10}" /></label>
@@ -354,17 +402,17 @@ function openCatModal(cat) {
     const body = { id: cat ? cat.id : undefined, name: $('#c_name').value, defaultPoints: $('#c_points').value };
     STATE = await api('categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     renderAll();
-    toast('Category saved.', 'good');
+    toast('Sport saved.', 'good');
   });
 }
 
 async function deleteCat(id) {
   const c = STATE.categories.find((x) => x.id === id);
-  if (!confirm(`Delete category "${c ? c.name : ''}"?`)) return;
+  if (!confirm(`Delete sport "${c ? c.name : ''}"?`)) return;
   try {
     STATE = await api('categories/' + id, { method: 'DELETE' });
     renderAll();
-    toast('Category deleted.', 'good');
+    toast('Sport deleted.', 'good');
   } catch (e) { toast(e.message, 'bad'); }
 }
 

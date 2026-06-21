@@ -1,0 +1,14 @@
+{
+  "name": "ticket-scoring-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local desktop app for tracking a points system where people earn points by buying tickets to games.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server.js"
+  },
+  "devDependencies": {
+    "electron": "^34.2.0"
+  }
+}
