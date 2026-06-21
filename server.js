@@ -410,7 +410,9 @@ function openBrowser(url) {
   }
 }
 
-const URL = 'http://localhost:' + PORT;
+// Use an explicit IPv4 address, not "localhost": some browsers resolve
+// "localhost" to IPv6 (::1) first, but we bind to IPv4 (127.0.0.1).
+const URL = 'http://127.0.0.1:' + PORT;
 
 loadState();
 server.on('error', (err) => {
