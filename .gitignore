@@ -1,6 +1,10 @@
 # Claude Code local settings
 .claude/settings.local.json
 
+# App data — your live points database; do not commit
+data.json
+data.json.tmp
+
 # OS / editor
 .DS_Store
 Thumbs.db
