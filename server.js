@@ -7,6 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 
 const PORT = process.env.PORT || 4321;
 const ROOT = __dirname;
@@ -393,15 +394,44 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res);
 });
 
+function openBrowser(url) {
+  if (process.env.NO_OPEN) return;
+  try {
+    if (process.platform === 'win32') {
+      // Use cmd's start; empty "" is the window title so a quoted URL works.
+      spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref();
+    } else if (process.platform === 'darwin') {
+      spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+    }
+  } catch (e) {
+    /* user can open the URL manually */
+  }
+}
+
+const URL = 'http://localhost:' + PORT;
+
 loadState();
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log('');
+    console.log('  Port ' + PORT + ' is already in use.');
+    console.log('  The app may already be running in another window —');
+    console.log('  try opening ' + URL + ' in your browser.');
+    console.log('');
+  } else {
+    console.log('  Could not start the server: ' + err.message);
+  }
+});
 server.listen(PORT, '127.0.0.1', () => {
   console.log('');
   console.log('  Ticket Scoring System is running.');
-  console.log('  Open this address in your browser:');
-  console.log('');
-  console.log('      http://localhost:' + PORT);
+  console.log('  Opening your browser to:  ' + URL);
+  console.log('  (If it does not open, paste that address into your browser.)');
   console.log('');
   console.log('  Data is saved to: ' + DATA_FILE);
   console.log('  Keep this window open while you use the app. Close it to stop.');
   console.log('');
+  openBrowser(URL);
 });
